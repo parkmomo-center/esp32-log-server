@@ -17,4 +17,4 @@ def show_logs():
     return "<br>".join([str(log) for log in logs])
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='192.168.20.57', port=5000)
