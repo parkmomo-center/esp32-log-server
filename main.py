@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+import os
 
 app = Flask(__name__)
 logs = []  # 메모리에 저장
@@ -17,4 +18,5 @@ def show_logs():
     return "<br>".join([str(log) for log in logs])
 
 if __name__ == '__main__':
-    app.run(host='192.168.20.57', port=5000)
+    port = int(os.environ.get('PORT', 10000))  # Render가 환경변수 PORT를 자동 지정함
+    app.run(host='0.0.0.0', port=port)
