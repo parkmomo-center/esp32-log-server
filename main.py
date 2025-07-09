@@ -2,7 +2,11 @@ from flask import Flask, request, jsonify
 import os
 
 app = Flask(__name__)
-logs = []  # 메모리에 저장
+logs = []
+
+@app.route('/')
+def home():
+    return "ESP32 Log Server is Running"
 
 @app.route('/data', methods=['POST'])
 def receive_data():
@@ -18,5 +22,5 @@ def show_logs():
     return "<br>".join([str(log) for log in logs])
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))  # Render가 환경변수 PORT를 자동 지정함
+    port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
