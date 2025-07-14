@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
 from datetime import datetime
 import os
@@ -10,7 +10,6 @@ socketio = SocketIO(app)
 
 logs = []
 
-# 기본 홈 화면
 @app.route('/')
 def index():
     return """
@@ -18,6 +17,7 @@ def index():
     <head>
         <title>ESP32 WebSocket 로그</title>
         <meta charset="utf-8">
+        <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
         <style>
             body { font-family: Arial, sans-serif; margin: 20px; }
             .log-entry {
@@ -29,16 +29,19 @@ def index():
             }
         </style>
         <script>
-            var socket = new WebSocket("wss://" + location.host + "/ws");
+            const socket = io("/ws");
 
-            socket.onmessage = function(event) {
-                const data = JSON.parse(event.data);
+            socket.on("connect", () => {
+                console.log("WebSocket connected");
+            });
+
+            socket.on("message", function (data) {
                 const logArea = document.getElementById("logs");
                 const entry = document.createElement("div");
                 entry.className = "log-entry";
                 entry.innerText = data.timestamp + " | " + JSON.stringify(data.data);
                 logArea.prepend(entry);
-            };
+            });
         </script>
     </head>
     <body>
@@ -49,18 +52,15 @@ def index():
             <a href="/download/txt">TXT 다운로드</a> |
             <a href="/clear">로그 초기화</a>
         </p>
-        <div id="logs">
-        </div>
+        <div id="logs"></div>
     </body>
     </html>
     """
 
-# WebSocket 연결
 @socketio.on('connect', namespace='/ws')
 def ws_connect():
     print("WebSocket 연결됨")
 
-# HTTP POST로 로그 수신
 @app.route('/data', methods=['POST'])
 def receive_data():
     try:
@@ -72,15 +72,15 @@ def receive_data():
             }
             logs.append(log_entry)
 
-            # WebSocket으로 브라우저에 전송
+            # WebSocket으로 클라이언트에 푸시
             socketio.emit('message', log_entry, namespace='/ws')
+
             return jsonify({"status": "ok", "message": "데이터 저장됨"}), 200
         else:
             return jsonify({"status": "error", "message": "빈 데이터입니다."}), 400
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# 로그 초기화
 @app.route('/clear', methods=['GET', 'POST'])
 def clear_logs():
     global logs
@@ -95,7 +95,6 @@ def clear_logs():
     </html>
     """
 
-# CSV 다운로드
 @app.route('/download/csv')
 def download_csv():
     from io import StringIO
@@ -121,7 +120,6 @@ def download_csv():
         }
     )
 
-# TXT 다운로드
 @app.route('/download/txt')
 def download_txt():
     content = ""
@@ -136,7 +134,6 @@ def download_txt():
         }
     )
 
-# 상태 확인용 API
 @app.route('/status')
 def server_status():
     return jsonify({
@@ -145,12 +142,10 @@ def server_status():
         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     })
 
-# WebSocket 핸들러 (텍스트용, 브라우저 직접 연결 시 사용 가능)
 @app.route('/ws')
 def ws_page():
     return "WebSocket endpoint"
 
-# 실행
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
     socketio.run(app, host='0.0.0.0', port=port)
