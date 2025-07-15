@@ -4,6 +4,8 @@ from datetime import datetime
 import pytz
 import os
 import csv
+import threading
+import time
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -72,10 +74,7 @@ def receive_data():
                 'data': data
             }
             logs.append(log_entry)
-
-            # WebSocket으로 클라이언트에 푸시
             socketio.emit('message', log_entry, namespace='/ws')
-
             return jsonify({"status": "ok", "message": "데이터 저장됨"}), 200
         else:
             return jsonify({"status": "error", "message": "빈 데이터입니다."}), 400
@@ -140,13 +139,26 @@ def server_status():
     return jsonify({
         'status': 'running',
         'log_count': len(logs),
-        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        'timestamp': datetime.now(pytz.timezone('Asia/Seoul')).strftime('%Y-%m-%d %H:%M:%S')
     })
 
 @app.route('/ws')
 def ws_page():
     return "WebSocket endpoint"
 
+# ✅ Render 슬립 방지용 ping 스레드
+def auto_ping():
+    while True:
+        try:
+            with app.test_client() as client:
+                client.get("/status")
+        except Exception as e:
+            print(f"Ping 오류: {e}")
+        time.sleep(600)  # 10분마다
+
 if __name__ == '__main__':
+    # 슬립 방지용 ping 스레드 실행
+    threading.Thread(target=auto_ping, daemon=True).start()
+
     port = int(os.environ.get("PORT", 10000))
     socketio.run(app, host='0.0.0.0', port=port)
