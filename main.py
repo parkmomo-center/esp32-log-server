@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_socketio import SocketIO, emit
 from datetime import datetime
+import pytz
 import os
 import csv
 
@@ -67,7 +68,7 @@ def receive_data():
         data = request.get_json()
         if data:
             log_entry = {
-                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'timestamp': datetime.now(pytz.timezone('Asia/Seoul')).strftime('%Y-%m-%d %H:%M:%S'),
                 'data': data
             }
             logs.append(log_entry)
