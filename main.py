@@ -4,8 +4,6 @@ from datetime import datetime
 import pytz
 import os
 import csv
-import threading
-import time
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -34,6 +32,20 @@ def index():
         <script>
             const socket = io("/ws");
 
+            // 기존 로그 불러오기
+            window.onload = async () => {
+                const res = await fetch("/logs");
+                const data = await res.json();
+                const logArea = document.getElementById("logs");
+
+                data.reverse().forEach((entry) => {
+                    const div = document.createElement("div");
+                    div.className = "log-entry";
+                    div.innerText = entry.timestamp + " | " + JSON.stringify(entry.data);
+                    logArea.appendChild(div);
+                });
+            };
+
             socket.on("connect", () => {
                 console.log("WebSocket connected");
             });
@@ -60,10 +72,12 @@ def index():
     </html>
     """
 
+# WebSocket 연결
 @socketio.on('connect', namespace='/ws')
 def ws_connect():
     print("WebSocket 연결됨")
 
+# HTTP POST로 로그 수신
 @app.route('/data', methods=['POST'])
 def receive_data():
     try:
@@ -74,13 +88,22 @@ def receive_data():
                 'data': data
             }
             logs.append(log_entry)
+
+            # WebSocket으로 클라이언트에 푸시
             socketio.emit('message', log_entry, namespace='/ws')
+
             return jsonify({"status": "ok", "message": "데이터 저장됨"}), 200
         else:
             return jsonify({"status": "error", "message": "빈 데이터입니다."}), 400
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# 기존 로그 조회 API (새 탭에서 초기 출력용)
+@app.route('/logs')
+def get_logs():
+    return jsonify(logs)
+
+# 로그 초기화
 @app.route('/clear', methods=['GET', 'POST'])
 def clear_logs():
     global logs
@@ -95,6 +118,7 @@ def clear_logs():
     </html>
     """
 
+# CSV 다운로드
 @app.route('/download/csv')
 def download_csv():
     from io import StringIO
@@ -120,6 +144,7 @@ def download_csv():
         }
     )
 
+# TXT 다운로드
 @app.route('/download/txt')
 def download_txt():
     content = ""
@@ -134,6 +159,7 @@ def download_txt():
         }
     )
 
+# 서버 상태 확인 (Render ping 방지용)
 @app.route('/status')
 def server_status():
     return jsonify({
@@ -142,23 +168,12 @@ def server_status():
         'timestamp': datetime.now(pytz.timezone('Asia/Seoul')).strftime('%Y-%m-%d %H:%M:%S')
     })
 
+# WebSocket 엔드포인트 설명
 @app.route('/ws')
 def ws_page():
     return "WebSocket endpoint"
 
-# ✅ Render 슬립 방지용 ping 스레드
-def auto_ping():
-    while True:
-        try:
-            with app.test_client() as client:
-                client.get("/status")
-        except Exception as e:
-            print(f"Ping 오류: {e}")
-        time.sleep(600)  # 10분마다
-
+# 실행
 if __name__ == '__main__':
-    # 슬립 방지용 ping 스레드 실행
-    threading.Thread(target=auto_ping, daemon=True).start()
-
     port = int(os.environ.get("PORT", 10000))
     socketio.run(app, host='0.0.0.0', port=port)
